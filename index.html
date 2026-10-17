@@ -68,6 +68,7 @@
     <div id="admin-screen" class="hidden bg-gray-50 p-6 rounded-2xl shadow-2xl text-center pointer-events-auto max-w-sm w-[90%] max-h-[90vh] overflow-y-auto hide-scroll border-4 border-gray-600">
         <h2 class="text-2xl font-black text-gray-800 mb-4">⚙️ 親用・管理者メニュー</h2>
         
+        <!-- 子供の追加枠 -->
         <div class="bg-white p-4 rounded-lg shadow-sm mb-4 text-left border">
             <h3 class="font-bold text-sm text-gray-700 mb-2 border-b pb-1">👤 新しい子を追加・上限変更</h3>
             <div class="mb-2">
@@ -84,11 +85,21 @@
             <button id="admin-add-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 rounded shadow transition-colors">登録・更新する</button>
         </div>
 
+        <!-- 子供リスト枠 -->
         <div class="text-left mb-4">
             <h3 class="font-bold text-sm text-gray-700 mb-2 border-b pb-1">📋 登録済みの子供たち</h3>
             <ul id="admin-user-list" class="space-y-2 text-sm">
                 <li class="text-center text-gray-500 py-2">よみこみ中...</li>
             </ul>
+        </div>
+
+        <!-- ★パスワード変更枠（新機能！） -->
+        <div class="bg-white p-4 rounded-lg shadow-sm mb-4 text-left border">
+            <h3 class="font-bold text-sm text-gray-700 mb-2 border-b pb-1">🔑 管理者パスワードの変更</h3>
+            <div class="flex items-center space-x-2">
+                <input type="text" id="admin-new-pwd" placeholder="新しいパスワード" class="flex-1 px-2 py-2 border rounded bg-gray-50 font-bold">
+                <button id="admin-change-pwd-btn" class="bg-gray-700 hover:bg-gray-800 text-white font-bold py-2 px-3 rounded shadow transition-colors text-sm">変更</button>
+            </div>
         </div>
 
         <button id="admin-close-btn" class="w-full bg-gray-600 text-white font-bold py-3 rounded-full text-lg shadow">もどる</button>
@@ -149,9 +160,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// ★ 管理者用パスワード
-const ADMIN_PASSWORD = "0000";
-
 let currentUser = null; 
 
 // スプラッシュ画面の制御
@@ -178,7 +186,6 @@ async function loadUserListForDropdown() {
         let users = [];
         snapshot.forEach(docSnap => { users.push(docSnap.id); });
         
-        // 人数が増えても見やすいように「あいうえお順」に並べ替え！
         users.sort((a, b) => a.localeCompare(b, 'ja'));
         
         if(users.length === 0) {
@@ -252,19 +259,58 @@ let lastTime = 0;
 const fpsInterval = 1000 / 60; 
 
 // ==========================================
-// 管理者メニュー機能
+// ★ 管理者メニュー＆パスワード機能 ★
 // ==========================================
-document.getElementById('admin-btn').addEventListener('click', () => {
-    const pwd = prompt('保護者用パスワードを入力してください:');
-    if (pwd === ADMIN_PASSWORD) {
-        document.getElementById('title-screen').classList.add('hidden');
-        document.getElementById('admin-screen').classList.remove('hidden');
-        loadAdminUsers();
-    } else if (pwd !== null) {
-        alert('パスワードがちがいます！');
+
+// 1. 管理者メニューを開くとき
+document.getElementById('admin-btn').addEventListener('click', async () => {
+    const pwd = prompt('保護者用パスワードを入力してください:\n（初期パスワードは 0000 です）');
+    if (pwd === null) return; // キャンセルした時
+
+    try {
+        // クラウドから現在のパスワードを取得（無い場合は0000）
+        const docRef = doc(db, "settings", "admin");
+        const docSnap = await getDoc(docRef);
+        let currentPassword = "0000";
+        if (docSnap.exists() && docSnap.data().password) {
+            currentPassword = docSnap.data().password;
+        }
+
+        if (pwd === currentPassword) {
+            document.getElementById('title-screen').classList.add('hidden');
+            document.getElementById('admin-screen').classList.remove('hidden');
+            loadAdminUsers();
+        } else {
+            alert('パスワードがちがいます！');
+        }
+    } catch(e) {
+        alert('通信エラーがおきました。');
     }
 });
 
+// 2. パスワードを変更するとき
+document.getElementById('admin-change-pwd-btn').addEventListener('click', async () => {
+    const newPwd = document.getElementById('admin-new-pwd').value.trim();
+    if (!newPwd) {
+        alert('新しいパスワードを入力してください！');
+        return;
+    }
+    
+    if (confirm(`パスワードを「${newPwd}」に変更しますか？`)) {
+        const btn = document.getElementById('admin-change-pwd-btn');
+        btn.innerText = '変更中...'; btn.disabled = true;
+        try {
+            await setDoc(doc(db, "settings", "admin"), { password: newPwd }, { merge: true });
+            alert('パスワードを変更しました！次からこのパスワードを使ってください。');
+            document.getElementById('admin-new-pwd').value = '';
+        } catch(e) {
+            alert('エラーが発生しました。');
+        }
+        btn.innerText = '変更'; btn.disabled = false;
+    }
+});
+
+// メニューを閉じる
 document.getElementById('admin-close-btn').addEventListener('click', () => {
     document.getElementById('admin-screen').classList.add('hidden');
     document.getElementById('title-screen').classList.remove('hidden');
@@ -291,7 +337,7 @@ document.getElementById('admin-add-btn').addEventListener('click', async () => {
         }
         document.getElementById('admin-new-name').value = '';
         await loadAdminUsers();
-        await loadUserListForDropdown(); // リストも即更新
+        await loadUserListForDropdown(); 
     } catch(e) { alert('エラーが発生しました。'); }
     btn.innerText = '登録・更新する'; btn.disabled = false;
 });
@@ -314,7 +360,7 @@ async function loadAdminUsers() {
             let isUnlimited = (d.unlimitedDate === today);
             let unlimHtml = isUnlimited 
                 ? `<span class="text-green-500 font-bold text-xs bg-green-50 px-2 py-1 rounded">✨今日無制限ON</span>`
-                : `<button class="bg-yellow-400 hover:bg-yellow-500 text-white px-2 py-1 rounded text-xs font-bold" onclick="setUnlimited('${docSnap.id}')">今日だけ無制限にする</button>`;
+                : `<button class="bg-yellow-400 hover:bg-yellow-500 text-white px-2 py-1 rounded text-xs font-bold" onclick="setUnlimited('${docSnap.id}')">今日だけ無制限</button>`;
 
             li.innerHTML = `
                 <div class="flex justify-between items-center mb-2">
@@ -338,7 +384,7 @@ window.deleteUser = async (name) => {
     if(confirm(`${name} のデータを削除しますか？`)) {
         await deleteDoc(doc(db, "users", name)); 
         await loadAdminUsers();
-        await loadUserListForDropdown(); // リストも即更新
+        await loadUserListForDropdown(); 
     }
 };
 
