@@ -161,12 +161,12 @@ const db = getFirestore(app);
 
 let currentUser = null; 
 let cachedAdminPassword = "0000"; 
-let isStartingGame = false; // ★連打による二重カウント防止ロック
+let isStartingGame = false; 
 
-// ★どのスマホ・ブラウザでも絶対に同じになる日本時間の日付（例: "2026-10-18"）
+// 日本時間の日付取得
 function getTodayString() {
     const now = new Date();
-    const jstOffset = 9 * 60; // 日本時間 (UTC+9)
+    const jstOffset = 9 * 60; 
     const localOffset = now.getTimezoneOffset();
     const jstTime = new Date(now.getTime() + (jstOffset + localOffset) * 60 * 1000);
     const y = jstTime.getFullYear();
@@ -243,10 +243,12 @@ async function loadUserListForDropdown() {
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+// ★ 引きのアングル（ワイド視野）設定：1.38倍広い世界を表示して柱を見やすくする
+const CAMERA_ZOOM_OUT = 1.38; 
 let cw, ch;
 function resize() {
-    cw = window.innerWidth;
-    ch = window.innerHeight;
+    cw = Math.floor(window.innerWidth * CAMERA_ZOOM_OUT);
+    ch = Math.floor(window.innerHeight * CAMERA_ZOOM_OUT);
     canvas.width = cw;
     canvas.height = ch;
 }
@@ -269,16 +271,17 @@ const STAGES = [
 
 let gameState = 'title';
 let score = 0;
-let speed = 3.5;
+let speed = 3.2;
 let frameCount = 0;
 let currentStageIndex = 0;
 let stageBannerTimer = 0;
 let stageBannerText = '';
 let nextSpawnFrame = 90;
 
+// ★ プレイヤー位置を左寄せ(x:36)、サイズも引きアングルに合わせてスマートに調整
 let player = { 
-    x: 50, y: ch / 2, width: 58, height: 58, 
-    vy: 0, gravity: 0.58, jumpPower: -10.5, 
+    x: 36, y: ch / 2, width: 48, height: 48, 
+    vy: 0, gravity: 0.52, jumpPower: -10.2, 
     jumpCount: 0, hasShield: false, invulnerable: 0 
 };
 
@@ -427,7 +430,6 @@ window.setUnlimited = async (name) => {
     loadAdminUsers();
 };
 
-// ★今日のプレイ回数を0回にリセットする機能
 window.resetPlayCount = async (name) => {
     const today = getTodayString();
     await updateDoc(doc(db, "users", name), { playedToday: 0, lastDate: today });
@@ -435,10 +437,10 @@ window.resetPlayCount = async (name) => {
 };
 
 // ==========================================
-// ゲーム開始・チェック（★トランザクションで完璧にカウント！）
+// ゲーム開始・チェック
 // ==========================================
 async function tryStartGame(nameInput, btnElement) {
-    if (isStartingGame) return; // 連打防止ガード
+    if (isStartingGame) return; 
     if (!nameInput) { alert('おなまえ を えらんでね！'); return; }
 
     isStartingGame = true;
@@ -452,7 +454,6 @@ async function tryStartGame(nameInput, btnElement) {
         const docRef = doc(db, 'users', nameInput);
         const today = getTodayString();
 
-        // ★ トランザクション処理：データベース側で確実に最新状態を確認して+1する
         const updatedUserData = await runTransaction(db, async (transaction) => {
             const docSnap = await transaction.get(docRef);
             if (!docSnap.exists()) {
@@ -463,21 +464,18 @@ async function tryStartGame(nameInput, btnElement) {
             let playedToday = Number(data.playedToday) || 0;
             let playLimit = Number(data.playLimit) || 3;
 
-            // 日付が変わっていたら、確実に0回にリセットしてから計算スタート！
             if (data.lastDate !== today) {
                 playedToday = 0;
             }
 
             let isUnlimited = (data.unlimitedDate === today);
 
-            // 上限チェック
             if (!isUnlimited && playedToday >= playLimit) {
                 const err = new Error("LIMIT_REACHED");
                 err.playLimit = playLimit;
                 throw err;
             }
 
-            // 確実に +1 した数字で上書き保存する
             const nextPlayed = playedToday + 1;
             transaction.update(docRef, {
                 playedToday: nextPlayed,
@@ -560,9 +558,9 @@ function getStageColors(dist) {
 function initGame() {
     player.y = ch - 120; player.vy = 0; player.jumpCount = 0; player.hasShield = false; player.invulnerable = 0;
     obstacles = []; items = []; springs = []; particles = []; bgParticles = []; floatingTexts = [];
-    clouds = Array.from({length: 5}, () => ({x: Math.random()*cw, y: 40 + Math.random()*(ch/2.5), s: 25+Math.random()*35, speed: 0.4+Math.random()*0.6}));
-    stars = Array.from({length: 35}, () => ({x: Math.random()*cw, y: Math.random()*(ch-100), r: 1+Math.random()*2, a: Math.random()*Math.PI}));
-    score = 0; speed = 3.5; frameCount = 0; currentStageIndex = 0; nextSpawnFrame = 80; stageBannerText = STAGES[0].name; stageBannerTimer = 130; gameState = 'playing';
+    clouds = Array.from({length: 6}, () => ({x: Math.random()*cw, y: 40 + Math.random()*(ch/2.5), s: 25+Math.random()*35, speed: 0.4+Math.random()*0.6}));
+    stars = Array.from({length: 45}, () => ({x: Math.random()*cw, y: Math.random()*(ch-100), r: 1+Math.random()*2.2, a: Math.random()*Math.PI}));
+    score = 0; speed = 3.2; frameCount = 0; currentStageIndex = 0; nextSpawnFrame = 70; stageBannerText = STAGES[0].name; stageBannerTimer = 130; gameState = 'playing';
     
     document.getElementById('title-screen').classList.add('hidden');
     document.getElementById('game-over-screen').classList.add('hidden');
@@ -595,44 +593,44 @@ function drawUi(x, y, w, h, isJumping, frame) {
 
     if (customImg) {
         if(isJumping) ctx.rotate(-0.15);
-        let footOffset = isJumping ? 0 : Math.sin(frame * 0.35) * 6;
-        ctx.fillStyle = '#ff9966'; ctx.beginPath(); ctx.arc(-14, h/2 - 8 + footOffset, 8, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(14, h/2 - 8 - footOffset, 8, 0, Math.PI*2); ctx.fill();
+        let footOffset = isJumping ? 0 : Math.sin(frame * 0.35) * 5;
+        ctx.fillStyle = '#ff9966'; ctx.beginPath(); ctx.arc(-11, h/2 - 6 + footOffset, 6.5, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(11, h/2 - 6 - footOffset, 6.5, 0, Math.PI*2); ctx.fill();
         ctx.drawImage(customImg, -w/2, -h/2, w, h); ctx.restore(); return;
     }
 
     if (isJumping) { ctx.rotate(-0.1); ctx.scale(0.95, 1.05); } else { ctx.scale(1 + Math.sin(frame*0.25)*0.03, 1 - Math.sin(frame*0.25)*0.03); }
-    ctx.fillStyle = '#ff9933'; ctx.beginPath(); ctx.roundRect(-w/2.5, -h/4, w/1.25, h/1.5, 18); ctx.fill();
-    let footOffset = isJumping ? 0 : Math.sin(frame * 0.4) * 6;
-    ctx.beginPath(); ctx.roundRect(-w/3, h/3 - footOffset, 12, 18, 5); ctx.fill(); ctx.beginPath(); ctx.roundRect(w/3 - 12, h/3 + footOffset, 12, 18, 5); ctx.fill();
-    let handOffset = isJumping ? -6 : Math.cos(frame * 0.4) * 5;
-    ctx.beginPath(); ctx.roundRect(-w/2 - 4, handOffset, 12, 18, 6); ctx.fill(); ctx.beginPath(); ctx.roundRect(w/2 - 8, -handOffset, 12, 18, 6); ctx.fill();
+    ctx.fillStyle = '#ff9933'; ctx.beginPath(); ctx.roundRect(-w/2.5, -h/4, w/1.25, h/1.5, 14); ctx.fill();
+    let footOffset = isJumping ? 0 : Math.sin(frame * 0.4) * 5;
+    ctx.beginPath(); ctx.roundRect(-w/3, h/3 - footOffset, 10, 15, 4); ctx.fill(); ctx.beginPath(); ctx.roundRect(w/3 - 10, h/3 + footOffset, 10, 15, 4); ctx.fill();
+    let handOffset = isJumping ? -5 : Math.cos(frame * 0.4) * 4;
+    ctx.beginPath(); ctx.roundRect(-w/2 - 3, handOffset, 10, 15, 5); ctx.fill(); ctx.beginPath(); ctx.roundRect(w/2 - 7, -handOffset, 10, 15, 5); ctx.fill();
     ctx.fillStyle = '#ffe6cc'; ctx.beginPath(); ctx.arc(0, -h/6, w/1.8, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#ffcc00'; ctx.beginPath(); ctx.arc(-w/2, -h/2, 8, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#1a1a1a'; ctx.beginPath(); let tailSwing = isJumping ? 6 : Math.sin(frame * 0.3) * 5; ctx.ellipse(-w/1.8 + tailSwing, -h/4, 11, 24, -0.2, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(0, -h/6 - 4, w/1.8, Math.PI, Math.PI*2); const step = (w/0.9) / 8; for(let i = w/1.8; i >= -w/1.8; i -= step) { ctx.lineTo(i, -h/6 - 2); ctx.lineTo(i - step/2, -h/3.2); } ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = '#333'; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(-w/3.8, -h/10); ctx.lineTo(-w/8, -h/10); ctx.stroke(); ctx.beginPath(); ctx.moveTo(w/8, -h/10); ctx.lineTo(w/3.8, -h/10); ctx.stroke();
-    ctx.fillStyle = '#ff4d4d'; ctx.beginPath(); ctx.arc(-w/3.3, 1, 6, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(w/3.3, 1, 6, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = '#990000'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-w/3.3 - 2, -1); ctx.lineTo(-w/3.3 - 2, 3); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-w/3.3 + 2, -1); ctx.lineTo(-w/3.3 + 2, 3); ctx.stroke(); ctx.beginPath(); ctx.moveTo(w/3.3 - 2, -1); ctx.lineTo(w/3.3 - 2, 3); ctx.stroke(); ctx.beginPath(); ctx.moveTo(w/3.3 + 2, -1); ctx.lineTo(w/3.3 + 2, 3); ctx.stroke();
-    ctx.strokeStyle = '#333'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-7, 4); ctx.quadraticCurveTo(-3.5, 9, 0, 4); ctx.quadraticCurveTo(3.5, 9, 7, 4); ctx.stroke();
+    ctx.fillStyle = '#ffcc00'; ctx.beginPath(); ctx.arc(-w/2, -h/2, 7, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#1a1a1a'; ctx.beginPath(); let tailSwing = isJumping ? 5 : Math.sin(frame * 0.3) * 4; ctx.ellipse(-w/1.8 + tailSwing, -h/4, 9, 20, -0.2, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, -h/6 - 3, w/1.8, Math.PI, Math.PI*2); const step = (w/0.9) / 8; for(let i = w/1.8; i >= -w/1.8; i -= step) { ctx.lineTo(i, -h/6 - 2); ctx.lineTo(i - step/2, -h/3.2); } ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-w/3.8, -h/10); ctx.lineTo(-w/8, -h/10); ctx.stroke(); ctx.beginPath(); ctx.moveTo(w/8, -h/10); ctx.lineTo(w/3.8, -h/10); ctx.stroke();
+    ctx.fillStyle = '#ff4d4d'; ctx.beginPath(); ctx.arc(-w/3.3, 1, 5, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(w/3.3, 1, 5, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#990000'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-w/3.3 - 1.5, -1); ctx.lineTo(-w/3.3 - 1.5, 2.5); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-w/3.3 + 1.5, -1); ctx.lineTo(-w/3.3 + 1.5, 2.5); ctx.stroke(); ctx.beginPath(); ctx.moveTo(w/3.3 - 1.5, -1); ctx.lineTo(w/3.3 - 1.5, 2.5); ctx.stroke(); ctx.beginPath(); ctx.moveTo(w/3.3 + 1.5, -1); ctx.lineTo(w/3.3 + 1.5, 2.5); ctx.stroke();
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(-6, 3.5); ctx.quadraticCurveTo(-3, 8, 0, 3.5); ctx.quadraticCurveTo(3, 8, 6, 3.5); ctx.stroke();
     ctx.restore();
 }
 
 function spawnEntities(groundY, stageIdx) {
     const rand = Math.random();
     if (score > 160 && rand < 0.28) {
-        const isHigh = Math.random() < 0.45; const flyY = isHigh ? groundY - 105 : groundY - 48;
-        obstacles.push({ x: cw + 20, y: flyY, baseY: flyY, width: 38, height: 28, type: stageIdx === 4 ? 'ufo' : 'bird', speedMod: 1.2 });
+        const isHigh = Math.random() < 0.45; const flyY = isHigh ? groundY - 95 : groundY - 44;
+        obstacles.push({ x: cw + 30, y: flyY, baseY: flyY, width: 34, height: 25, type: stageIdx === 4 ? 'ufo' : 'bird', speedMod: 1.15 });
     } else if (score > 350 && rand < 0.55) {
-        let h = 55 + Math.random() * 35;
-        obstacles.push({ x: cw + 20, y: groundY - h, baseH: h, width: 32, height: h, type: 'moving', phase: Math.random() * Math.PI * 2, speedMod: 1.0 });
+        let h = 48 + Math.random() * 32;
+        obstacles.push({ x: cw + 30, y: groundY - h, baseH: h, width: 28, height: h, type: 'moving', phase: Math.random() * Math.PI * 2, speedMod: 1.0 });
     } else {
-        let maxH = Math.min(45 + score / 12, 115); let h = 35 + Math.random() * maxH;
-        obstacles.push({ x: cw + 20, y: groundY - h, width: 30, height: h, type: 'normal', speedMod: 1.0 });
-        if (h > 75 && Math.random() < 0.45) springs.push({ x: cw - 75, y: groundY - 14, width: 34, height: 14, bounced: false });
+        let maxH = Math.min(40 + score / 14, 100); let h = 32 + Math.random() * maxH;
+        obstacles.push({ x: cw + 30, y: groundY - h, width: 26, height: h, type: 'normal', speedMod: 1.0 });
+        if (h > 65 && Math.random() < 0.45) springs.push({ x: cw - 40, y: groundY - 12, width: 30, height: 12, bounced: false });
     }
     if (Math.random() < 0.45) {
         const isShield = !player.hasShield && Math.random() < 0.18;
-        items.push({ x: cw + 100 + Math.random() * 80, y: groundY - 70 - Math.random() * 90, size: 16, type: isShield ? 'shield' : 'star' });
+        items.push({ x: cw + 110 + Math.random() * 90, y: groundY - 65 - Math.random() * 85, size: 15, type: isShield ? 'shield' : 'star' });
     }
 }
 
@@ -646,10 +644,14 @@ function update(timestamp) {
     lastTime = timestamp - (elapsed % fpsInterval);
 
     ctx.clearRect(0, 0, cw, ch);
-    frameCount++; score += speed / 60; speed = Math.min(3.5 + (score / 180), 9.5);
+    frameCount++; 
+    score += speed / 60; 
+    // ★ スピードの上昇をマイルドにして見やすく調整
+    speed = Math.min(3.2 + (score / 220), 8.2);
     if (player.invulnerable > 0) player.invulnerable--;
 
-    const groundY = ch - 55; const env = getStageColors(score);
+    const groundY = ch - 70; 
+    const env = getStageColors(score);
 
     if (env.totalIdx !== currentStageIndex) {
         currentStageIndex = env.totalIdx; const loopText = env.loopCount > 1 ? ` (${env.loopCount}周目!)` : '';
@@ -662,7 +664,7 @@ function update(timestamp) {
 
     if (env.stage.weather === 'rainbow') {
         const rColors = ['rgba(255,0,0,0.18)', 'rgba(255,165,0,0.18)', 'rgba(255,255,0,0.18)', 'rgba(0,128,0,0.18)', 'rgba(0,0,255,0.18)', 'rgba(128,0,128,0.18)'];
-        rColors.forEach((col, idx) => { ctx.strokeStyle = col; ctx.lineWidth = 12; ctx.beginPath(); ctx.arc(cw/2, groundY + 100, Math.max(cw, ch)*0.6 - idx*12, Math.PI, Math.PI*2); ctx.stroke(); });
+        rColors.forEach((col, idx) => { ctx.strokeStyle = col; ctx.lineWidth = 14; ctx.beginPath(); ctx.arc(cw/2, groundY + 120, Math.max(cw, ch)*0.6 - idx*14, Math.PI, Math.PI*2); ctx.stroke(); });
     }
 
     if (['night', 'meteor', 'space'].includes(env.stage.weather)) {
@@ -670,8 +672,8 @@ function update(timestamp) {
         stars.forEach(s => { s.a += 0.05; ctx.globalAlpha = 0.4 + Math.sin(s.a)*0.5; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill(); });
         ctx.globalAlpha = 1.0;
         if (env.stage.weather === 'space') {
-            ctx.fillStyle = 'rgba(255, 180, 100, 0.35)'; ctx.beginPath(); ctx.arc(cw - 90, 110, 35, 0, Math.PI*2); ctx.fill();
-            ctx.strokeStyle = 'rgba(255, 220, 180, 0.5)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.ellipse(cw - 90, 110, 62, 14, -0.3, 0, Math.PI*2); ctx.stroke();
+            ctx.fillStyle = 'rgba(255, 180, 100, 0.35)'; ctx.beginPath(); ctx.arc(cw - 110, 130, 42, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = 'rgba(255, 220, 180, 0.5)'; ctx.lineWidth = 6; ctx.beginPath(); ctx.ellipse(cw - 110, 130, 75, 17, -0.3, 0, Math.PI*2); ctx.stroke();
         }
     }
 
@@ -700,17 +702,19 @@ function update(timestamp) {
     if (player.y < 0) { player.y = 0; player.vy = 0; }
 
     ctx.fillStyle = env.ground; ctx.fillRect(0, groundY, cw, ch - groundY);
-    ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(0, groundY, cw, 5);
+    ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.fillRect(0, groundY, cw, 6);
 
+    // ★ 柱の間隔も少し広げて見やすく調整
     if (frameCount >= nextSpawnFrame) {
         spawnEntities(groundY, currentStageIndex % STAGES.length);
-        let minGap = Math.max(48, 105 - Math.floor(score / 20)); nextSpawnFrame = frameCount + minGap + Math.floor(Math.random() * 35);
+        let minGap = Math.max(60, 118 - Math.floor(score / 22)); 
+        nextSpawnFrame = frameCount + minGap + Math.floor(Math.random() * 40);
     }
 
     for (let i = springs.length - 1; i >= 0; i--) {
         let sp = springs[i]; sp.x -= speed;
         ctx.fillStyle = '#ffd32a'; ctx.beginPath(); ctx.roundRect(sp.x, sp.y, sp.width, sp.height, 4); ctx.fill();
-        ctx.fillStyle = '#ff9f1a'; ctx.fillRect(sp.x + 6, sp.y + 5, sp.width - 12, sp.height - 5);
+        ctx.fillStyle = '#ff9f1a'; ctx.fillRect(sp.x + 5, sp.y + 4, sp.width - 10, sp.height - 4);
         if (!sp.bounced && player.x + player.width > sp.x && player.x < sp.x + sp.width && player.y + player.height >= sp.y - 6 && player.y + player.height <= sp.y + sp.height + 12 && player.vy >= 0) {
             sp.bounced = true; player.vy = player.jumpPower * 1.45; player.jumpCount = 1; 
             floatingTexts.push({ x: player.x, y: player.y, text: '大ジャンプ！', color: '#ffd32a', life: 40 });
@@ -721,7 +725,7 @@ function update(timestamp) {
 
     for (let i = items.length - 1; i >= 0; i--) {
         let it = items[i]; it.x -= speed; let bobY = it.y + Math.sin(frameCount * 0.1 + i) * 6;
-        ctx.save(); ctx.font = '26px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(it.type === 'shield' ? '🩷' : '⭐', it.x, bobY); ctx.restore();
+        ctx.save(); ctx.font = '24px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(it.type === 'shield' ? '🩷' : '⭐', it.x, bobY); ctx.restore();
         let dx = (player.x + player.width/2) - it.x, dy = (player.y + player.height/2) - bobY;
         if (Math.hypot(dx, dy) < player.width/2 + it.size) {
             if (it.type === 'shield') { player.hasShield = true; floatingTexts.push({ x: player.x, y: player.y, text: 'バリアGET!', color: '#ff6b81', life: 45 }); } 
@@ -736,22 +740,55 @@ function update(timestamp) {
 
     for (let i = obstacles.length - 1; i >= 0; i--) {
         let obs = obstacles[i]; obs.x -= speed * (obs.speedMod || 1);
-        if (obs.type === 'moving') { obs.height = obs.baseH + Math.sin(frameCount * 0.08 + obs.phase) * 24; obs.y = groundY - obs.height; } 
+        if (obs.type === 'moving') { obs.height = obs.baseH + Math.sin(frameCount * 0.08 + obs.phase) * 22; obs.y = groundY - obs.height; } 
         else if (obs.type === 'bird' || obs.type === 'ufo') { obs.y = obs.baseY + Math.sin(frameCount * 0.12) * 8; }
 
         if (obs.type === 'bird') {
-            ctx.fillStyle = '#2f3542'; ctx.beginPath(); ctx.ellipse(obs.x + obs.width/2, obs.y + obs.height/2, obs.width/2, obs.height/2.2, 0, 0, Math.PI*2); ctx.fill();
-            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5; let wingY = Math.sin(frameCount * 0.35) * 9; ctx.beginPath(); ctx.moveTo(obs.x + 12, obs.y + obs.height/2); ctx.lineTo(obs.x + 22, obs.y + obs.height/2 - wingY); ctx.stroke();
-            ctx.fillStyle = '#ffa502'; ctx.beginPath(); ctx.moveTo(obs.x, obs.y + obs.height/2); ctx.lineTo(obs.x - 8, obs.y + obs.height/2 + 3); ctx.lineTo(obs.x, obs.y + obs.height/2 + 6); ctx.fill();
+            // ★ 夜でもくっきり見えるように、鮮やかな黄色＋白フチ＋可愛い目のデザインに変更！
+            ctx.fillStyle = '#ffd32a'; 
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath(); 
+            ctx.ellipse(obs.x + obs.width/2, obs.y + obs.height/2, obs.width/2, obs.height/2.1, 0, 0, Math.PI*2); 
+            ctx.fill();
+            ctx.stroke();
+
+            // 羽（オレンジ色）
+            ctx.strokeStyle = '#ff6b81'; 
+            ctx.lineWidth = 3; 
+            let wingY = Math.sin(frameCount * 0.35) * 8; 
+            ctx.beginPath(); 
+            ctx.moveTo(obs.x + 12, obs.y + obs.height/2); 
+            ctx.lineTo(obs.x + 21, obs.y + obs.height/2 - wingY); 
+            ctx.stroke();
+
+            // 目
+            ctx.fillStyle = '#1e272e';
+            ctx.beginPath();
+            ctx.arc(obs.x + 8, obs.y + obs.height/2 - 2, 2.5, 0, Math.PI*2);
+            ctx.fill();
+
+            // くちばし
+            ctx.fillStyle = '#ff5252'; 
+            ctx.beginPath(); 
+            ctx.moveTo(obs.x, obs.y + obs.height/2 - 2); 
+            ctx.lineTo(obs.x - 8, obs.y + obs.height/2 + 2); 
+            ctx.lineTo(obs.x, obs.y + obs.height/2 + 5); 
+            ctx.fill();
         } else if (obs.type === 'ufo') {
-            ctx.fillStyle = '#7bed9f'; ctx.beginPath(); ctx.arc(obs.x + obs.width/2, obs.y + 10, 11, Math.PI, 0); ctx.fill();
-            ctx.fillStyle = '#a4b0be'; ctx.beginPath(); ctx.ellipse(obs.x + obs.width/2, obs.y + 14, obs.width/1.7, 7, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#7bed9f'; ctx.beginPath(); ctx.arc(obs.x + obs.width/2, obs.y + 9, 10, Math.PI, 0); ctx.fill();
+            ctx.fillStyle = '#ffdd59'; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.ellipse(obs.x + obs.width/2, obs.y + 13, obs.width/1.6, 6.5, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
         } else {
-            ctx.fillStyle = obs.type === 'moving' ? '#a55eea' : '#ff4757'; ctx.beginPath(); ctx.roundRect(obs.x, obs.y, obs.width, obs.height, 6); ctx.fill();
-            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(obs.x + 8, obs.y + 14, 3.5, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(obs.x + 20, obs.y + 14, 3.5, 0, Math.PI*2); ctx.fill();
+            // 柱にも薄い白フチをつけて夜でも見やすく
+            ctx.fillStyle = obs.type === 'moving' ? '#a55eea' : '#ff4757'; 
+            ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.roundRect(obs.x, obs.y, obs.width, obs.height, 6); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(obs.x + 7, obs.y + 13, 3, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(obs.x + 18, obs.y + 13, 3, 0, Math.PI*2); ctx.fill();
         }
 
-        let hitboxPad = 14;
+        let hitboxPad = 11;
         if (player.invulnerable <= 0 && player.x + hitboxPad < obs.x + obs.width && player.x + player.width - hitboxPad > obs.x && player.y + hitboxPad < obs.y + obs.height && player.y + player.height - hitboxPad > obs.y) {
             if (player.hasShield) {
                 player.hasShield = false; player.invulnerable = 50; player.vy = -7; floatingTexts.push({ x: player.x, y: player.y, text: 'バリア防御！', color: '#ff6b81', life: 45 });
@@ -761,7 +798,7 @@ function update(timestamp) {
                 gameOver(env.stage.name); return;
             }
         }
-        if (obs.x + obs.width < -20) obstacles.splice(i, 1);
+        if (obs.x + obs.width < -30) obstacles.splice(i, 1);
     }
 
     for (let i = particles.length - 1; i >= 0; i--) {
@@ -772,20 +809,21 @@ function update(timestamp) {
 
     for (let i = floatingTexts.length - 1; i >= 0; i--) {
         let ft = floatingTexts[i]; ft.y -= 1.2; ft.life--;
-        ctx.save(); ctx.font = 'bold 18px sans-serif'; ctx.fillStyle = ft.color; ctx.strokeStyle = '#000'; ctx.lineWidth = 3; ctx.globalAlpha = Math.min(1, ft.life / 15);
+        ctx.save(); ctx.font = 'bold 20px sans-serif'; ctx.fillStyle = ft.color; ctx.strokeStyle = '#000'; ctx.lineWidth = 3; ctx.globalAlpha = Math.min(1, ft.life / 15);
         ctx.strokeText(ft.text, ft.x, ft.y); ctx.fillText(ft.text, ft.x, ft.y); ctx.restore();
         if (ft.life <= 0) floatingTexts.splice(i, 1);
     }
 
-    ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.beginPath(); ctx.roundRect(12, 12, 210, 56, 16); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 24px sans-serif'; ctx.fillText(`${Math.floor(score)} m`, 26, 40);
-    ctx.font = 'bold 12px sans-serif'; ctx.fillStyle = '#ffd32a'; ctx.fillText(env.stage.name, 26, 58);
-    if (player.hasShield) { ctx.font = '18px sans-serif'; ctx.fillText('🩷', 185, 42); }
+    // 左上のスコアパネル（引きアングルでも見やすいよう少し大きめに描画）
+    ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.beginPath(); ctx.roundRect(16, 16, 250, 68, 18); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 30px sans-serif'; ctx.fillText(`${Math.floor(score)} m`, 32, 50);
+    ctx.font = 'bold 15px sans-serif'; ctx.fillStyle = '#ffd32a'; ctx.fillText(env.stage.name, 32, 72);
+    if (player.hasShield) { ctx.font = '24px sans-serif'; ctx.fillText('🩷', 220, 52); }
 
     if (stageBannerTimer > 0) {
         stageBannerTimer--; ctx.save(); let alpha = Math.min(1, stageBannerTimer / 25); ctx.globalAlpha = alpha;
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)'; ctx.beginPath(); ctx.roundRect(cw/2 - 130, 85, 260, 44, 22); ctx.fill();
-        ctx.fillStyle = '#ffffff'; ctx.font = 'bold 18px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(stageBannerText, cw/2, 113); ctx.restore();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)'; ctx.beginPath(); ctx.roundRect(cw/2 - 160, 110, 320, 54, 27); ctx.fill();
+        ctx.fillStyle = '#ffffff'; ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(stageBannerText, cw/2, 144); ctx.restore();
     }
 }
 
