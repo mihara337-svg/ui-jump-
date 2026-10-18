@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>ゆいじゃんぷ - 完全版ストッパー</title>
-    <!-- アプリアイコンの設定（スペースを%20に変換して確実に読み込む） -->
+    <!-- アプリアイコンの設定 -->
     <link rel="icon" href="./uijump%20001.jpg">
     <link rel="apple-touch-icon" href="./uijump%20001.jpg">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -13,7 +13,6 @@
     
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* 100vhと100dvhを併用し、あらゆるスマホで全画面にピタッと合わせる */
         html, body { 
             margin: 0; padding: 0; overflow: hidden; touch-action: none; 
             background-color: #000; user-select: none; -webkit-user-select: none; 
@@ -74,7 +73,6 @@
     <div id="admin-screen" class="hidden bg-gray-50 p-6 rounded-2xl shadow-2xl text-center pointer-events-auto max-w-sm w-[90%] max-h-[90vh] overflow-y-auto hide-scroll border-4 border-gray-600">
         <h2 class="text-2xl font-black text-gray-800 mb-4">⚙️ 親用・管理者メニュー</h2>
         
-        <!-- 子供の追加枠 -->
         <div class="bg-white p-4 rounded-lg shadow-sm mb-4 text-left border">
             <h3 class="font-bold text-sm text-gray-700 mb-2 border-b pb-1">👤 新しい子を追加・上限変更</h3>
             <div class="mb-2">
@@ -91,7 +89,6 @@
             <button id="admin-add-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 rounded shadow transition-colors">登録・更新する</button>
         </div>
 
-        <!-- 子供リスト枠 -->
         <div class="text-left mb-4">
             <h3 class="font-bold text-sm text-gray-700 mb-2 border-b pb-1">📋 登録済みの子供たち</h3>
             <ul id="admin-user-list" class="space-y-2 text-sm">
@@ -99,7 +96,6 @@
             </ul>
         </div>
 
-        <!-- パスワード変更枠 -->
         <div class="bg-white p-4 rounded-lg shadow-sm mb-4 text-left border">
             <h3 class="font-bold text-sm text-gray-700 mb-2 border-b pb-1">🔑 管理者パスワードの変更</h3>
             <p class="text-[11px] text-gray-500 mb-2">現在設定されているパスワード: <span id="current-pwd-display" class="font-bold text-gray-800">0000</span></p>
@@ -118,16 +114,13 @@
         <p class="text-xs text-gray-500 mb-1" id="reached-stage">到達ステージ: さわやか青空</p>
         <p class="text-4xl font-black text-orange-500 mb-1" id="result-score">0<span class="text-lg">m</span></p>
         
-        <!-- ベスト更新のお知らせ -->
         <div id="record-notice" class="h-6 mb-2 font-bold text-red-500 text-sm animate-bounce hidden"></div>
 
-        <!-- プレイヤー情報と残り回数 -->
         <div class="bg-gray-100 p-3 rounded-lg mb-3 text-left shadow-inner">
             <p class="text-sm font-bold text-gray-700 mb-1">👤 あそんだ人: <span id="display-player-name" class="text-blue-600 text-lg"></span></p>
             <p class="text-sm font-bold text-gray-700">🎮 今日の残り: <span id="display-remaining" class="text-red-500 text-lg"></span></p>
         </div>
 
-        <!-- ダブルランキング -->
         <div class="grid grid-cols-2 gap-2 mb-4">
             <div class="text-left bg-orange-50 p-2 rounded border border-orange-200">
                 <h3 class="font-bold border-b border-orange-300 pb-1 mb-1 text-orange-800 text-xs">👑 総合トップ5</h3>
@@ -152,9 +145,8 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
-import { getFirestore, collection, getDocs, query, orderBy, limit, doc, getDoc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, query, orderBy, limit, doc, getDoc, setDoc, updateDoc, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
 
-// Firebase設定
 const firebaseConfig = {
   apiKey: "AIzaSyCjexaJ7BxxQLyebCNZ6A3W1E22apRYiFU",
   authDomain: "uijump-71d08.firebaseapp.com",
@@ -168,21 +160,30 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 let currentUser = null; 
-let cachedAdminPassword = "0000"; // 初期パスワード
+let cachedAdminPassword = "0000"; 
+let isStartingGame = false; // ★連打による二重カウント防止ロック
 
-// 起動時に最新のパスワードをクラウドからこっそり読み込んでおく
+// ★どのスマホ・ブラウザでも絶対に同じになる日本時間の日付（例: "2026-10-18"）
+function getTodayString() {
+    const now = new Date();
+    const jstOffset = 9 * 60; // 日本時間 (UTC+9)
+    const localOffset = now.getTimezoneOffset();
+    const jstTime = new Date(now.getTime() + (jstOffset + localOffset) * 60 * 1000);
+    const y = jstTime.getFullYear();
+    const m = String(jstTime.getMonth() + 1).padStart(2, '0');
+    const d = String(jstTime.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
 async function preloadAdminPassword() {
     try {
         const docSnap = await getDoc(doc(db, "settings", "admin"));
         if (docSnap.exists() && docSnap.data().password) {
             cachedAdminPassword = String(docSnap.data().password);
         }
-    } catch (e) {
-        console.warn("パスワード事前読込スキップ");
-    }
+    } catch (e) {}
 }
 
-// ★ 全画面表示＆画面サイズ自動調整
 function enterFullScreen() {
     const elem = document.documentElement;
     try {
@@ -194,13 +195,11 @@ function enterFullScreen() {
             }
         }
     } catch (e) {}
-    // 全画面アニメーション中もズレないように複数回サイズを測り直す
     setTimeout(resize, 100);
     setTimeout(resize, 300);
     setTimeout(resize, 600);
 }
 
-// スプラッシュ画面の制御と初期データ読み込み
 window.addEventListener('load', () => {
     setTimeout(() => {
         const splash = document.getElementById('splash-screen');
@@ -212,9 +211,6 @@ window.addEventListener('load', () => {
     preloadAdminPassword();
 });
 
-// ==========================================
-// ドロップダウン用のユーザーリスト読み込み
-// ==========================================
 async function loadUserListForDropdown() {
     const selectEl = document.getElementById('login-name');
     try {
@@ -300,10 +296,9 @@ let lastTime = 0;
 const fpsInterval = 1000 / 60; 
 
 // ==========================================
-// ★ 管理者メニュー＆パスワード機能 ★
+// 管理者メニュー
 // ==========================================
 document.getElementById('admin-btn').addEventListener('click', async () => {
-    // スマホでブロックされないよう、ボタンを押した瞬間にまず入力画面を出す！
     const pwd = prompt('保護者用パスワードを入力してください:\n（初期パスワードは 0000 です）');
     if (pwd === null) return; 
 
@@ -313,9 +308,7 @@ document.getElementById('admin-btn').addEventListener('click', async () => {
         if (docSnap.exists() && docSnap.data().password) {
             cachedAdminPassword = String(docSnap.data().password);
         }
-    } catch(e) {
-        console.warn("オフラインまたは未設定のためキャッシュを使用します");
-    }
+    } catch(e) {}
 
     if (pwd.trim() === cachedAdminPassword) {
         document.getElementById('current-pwd-display').innerText = cachedAdminPassword;
@@ -329,10 +322,7 @@ document.getElementById('admin-btn').addEventListener('click', async () => {
 
 document.getElementById('admin-change-pwd-btn').addEventListener('click', async () => {
     const newPwd = document.getElementById('admin-new-pwd').value.trim();
-    if (!newPwd) {
-        alert('新しいパスワードを入力してください！');
-        return;
-    }
+    if (!newPwd) { alert('新しいパスワードを入力してください！'); return; }
     
     if (confirm(`パスワードを「${newPwd}」に変更しますか？`)) {
         const btn = document.getElementById('admin-change-pwd-btn');
@@ -343,9 +333,7 @@ document.getElementById('admin-change-pwd-btn').addEventListener('click', async 
             document.getElementById('current-pwd-display').innerText = newPwd;
             alert(`パスワードを「${newPwd}」に変更しました！`);
             document.getElementById('admin-new-pwd').value = '';
-        } catch(e) {
-            alert('通信エラーが発生しました。もう一度お試しください。');
-        }
+        } catch(e) { alert('エラーが発生しました。'); }
         btn.innerText = '変更'; btn.disabled = false;
     }
 });
@@ -358,10 +346,7 @@ document.getElementById('admin-close-btn').addEventListener('click', () => {
 document.getElementById('admin-add-btn').addEventListener('click', async () => {
     const name = document.getElementById('admin-new-name').value.trim();
     const pLimit = parseInt(document.getElementById('admin-new-limit').value, 10);
-    if (!name || isNaN(pLimit)) {
-        alert('おなまえ と 回数 を正しく入力してください。');
-        return;
-    }
+    if (!name || isNaN(pLimit) || pLimit < 1) { alert('おなまえ と 正しい回数（1以上）を入力してください。'); return; }
 
     const btn = document.getElementById('admin-add-btn');
     btn.innerText = '処理中...'; btn.disabled = true;
@@ -373,7 +358,7 @@ document.getElementById('admin-add-btn').addEventListener('click', async () => {
             await updateDoc(docRef, { playLimit: pLimit }); 
         } else {
             await setDoc(docRef, { 
-                playLimit: pLimit, playedToday: 0, lastDate: "", unlimitedDate: "", 
+                playLimit: pLimit, playedToday: 0, lastDate: getTodayString(), unlimitedDate: "", 
                 bestScore: 0, dailyScore: 0, dailyDate: "" 
             });
         }
@@ -391,15 +376,18 @@ async function loadAdminUsers() {
         const q = query(collection(db, "users"));
         const snapshot = await getDocs(q);
         listEl.innerHTML = '';
-        if(snapshot.empty) { listEl.innerHTML = '<li class="text-center py-2 text-gray-500">まだだれも登録されていません。</li>'; return; }
+        if(snapshot.empty) { listEl.innerHTML = '<li class="text-center py-2 text-gray-500">まだ登録されていません。</li>'; return; }
         
-        const today = new Date().toLocaleDateString('ja-JP');
+        const today = getTodayString();
         snapshot.forEach(docSnap => {
             const d = docSnap.data();
             const li = document.createElement('li');
             li.className = 'bg-white p-3 rounded border shadow-sm';
             
+            const playedCount = (d.lastDate === today) ? (Number(d.playedToday) || 0) : 0;
+            const limitCount = Number(d.playLimit) || 3;
             let isUnlimited = (d.unlimitedDate === today);
+            
             let unlimHtml = isUnlimited 
                 ? `<span class="text-green-600 font-bold text-xs bg-green-100 px-2 py-1 rounded">✨今日無制限ON</span>`
                 : `<button class="bg-yellow-400 hover:bg-yellow-500 text-white px-2 py-1 rounded text-xs font-bold shadow-sm" onclick="setUnlimited('${docSnap.id}')">今日だけ無制限</button>`;
@@ -411,10 +399,13 @@ async function loadAdminUsers() {
                 </div>
                 <div class="flex justify-between items-end">
                     <div class="text-xs text-gray-500">
-                        1日上限: <span class="font-bold">${d.playLimit}</span>回<br>
-                        今日のプレイ: <span class="text-blue-600 font-bold text-sm">${d.lastDate === today ? d.playedToday : 0}</span>回
+                        1日上限: <span class="font-bold">${limitCount}</span>回<br>
+                        今日のプレイ: <span class="text-blue-600 font-bold text-sm">${playedCount}</span>回
                     </div>
-                    <button class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs font-bold shadow-sm" onclick="deleteUser('${docSnap.id}')">削除</button>
+                    <div class="space-x-1">
+                        <button class="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold shadow-sm" onclick="resetPlayCount('${docSnap.id}')">🔄0回に戻す</button>
+                        <button class="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs font-bold shadow-sm" onclick="deleteUser('${docSnap.id}')">削除</button>
+                    </div>
                 </div>
             `;
             listEl.appendChild(li);
@@ -431,63 +422,99 @@ window.deleteUser = async (name) => {
 };
 
 window.setUnlimited = async (name) => {
-    const today = new Date().toLocaleDateString('ja-JP');
+    const today = getTodayString();
     await updateDoc(doc(db, "users", name), { unlimitedDate: today });
     loadAdminUsers();
 };
 
+// ★今日のプレイ回数を0回にリセットする機能
+window.resetPlayCount = async (name) => {
+    const today = getTodayString();
+    await updateDoc(doc(db, "users", name), { playedToday: 0, lastDate: today });
+    loadAdminUsers();
+};
+
 // ==========================================
-// ゲーム開始・チェック
+// ゲーム開始・チェック（★トランザクションで完璧にカウント！）
 // ==========================================
 async function tryStartGame(nameInput, btnElement) {
+    if (isStartingGame) return; // 連打防止ガード
     if (!nameInput) { alert('おなまえ を えらんでね！'); return; }
 
-    // ボタンを押した瞬間に全画面化を実行！
+    isStartingGame = true;
     enterFullScreen();
 
     const originalText = btnElement.innerText;
-    btnElement.innerText = 'かくにん中...'; btnElement.disabled = true;
+    btnElement.innerText = 'かくにん中...'; 
+    btnElement.disabled = true;
 
     try {
         const docRef = doc(db, 'users', nameInput);
-        const docSnap = await getDoc(docRef);
+        const today = getTodayString();
 
-        if (!docSnap.exists()) {
-            alert('この おなまえ は とうろく されていません。');
-            btnElement.innerText = originalText; btnElement.disabled = false; return;
-        }
+        // ★ トランザクション処理：データベース側で確実に最新状態を確認して+1する
+        const updatedUserData = await runTransaction(db, async (transaction) => {
+            const docSnap = await transaction.get(docRef);
+            if (!docSnap.exists()) {
+                throw new Error("NOT_FOUND");
+            }
 
-        let data = docSnap.data();
-        const today = new Date().toLocaleDateString('ja-JP');
+            let data = docSnap.data();
+            let playedToday = Number(data.playedToday) || 0;
+            let playLimit = Number(data.playLimit) || 3;
 
-        if (data.lastDate !== today) {
-            data.playedToday = 0; data.lastDate = today;
-        }
+            // 日付が変わっていたら、確実に0回にリセットしてから計算スタート！
+            if (data.lastDate !== today) {
+                playedToday = 0;
+            }
 
-        let isUnlimited = (data.unlimitedDate === today);
+            let isUnlimited = (data.unlimitedDate === today);
 
-        if (!isUnlimited && data.playedToday >= data.playLimit) {
-            alert(`きょうは ${data.playLimit}回 あそんだよ！\nきょうのぶんは おしまい！またあしたね！`);
-            btnElement.innerText = originalText; btnElement.disabled = false;
-            document.getElementById('game-over-screen').classList.add('hidden');
-            document.getElementById('title-screen').classList.remove('hidden');
-            return;
-        }
+            // 上限チェック
+            if (!isUnlimited && playedToday >= playLimit) {
+                const err = new Error("LIMIT_REACHED");
+                err.playLimit = playLimit;
+                throw err;
+            }
 
-        await updateDoc(docRef, { playedToday: data.playedToday + 1, lastDate: today });
-        data.playedToday += 1;
-        
-        currentUser = data;
-        currentUser.id = nameInput;
+            // 確実に +1 した数字で上書き保存する
+            const nextPlayed = playedToday + 1;
+            transaction.update(docRef, {
+                playedToday: nextPlayed,
+                lastDate: today
+            });
 
-        btnElement.innerText = originalText; btnElement.disabled = false;
+            data.playedToday = nextPlayed;
+            data.playLimit = playLimit;
+            data.lastDate = today;
+            data.id = nameInput;
+            return data;
+        });
+
+        currentUser = updatedUserData;
+        btnElement.innerText = originalText; 
+        btnElement.disabled = false;
+        isStartingGame = false;
         
         resize();
         initGame();
 
     } catch (e) {
-        console.error(e); alert('通信エラーがおきました。');
-        btnElement.innerText = originalText; btnElement.disabled = false;
+        btnElement.innerText = originalText; 
+        btnElement.disabled = false;
+        isStartingGame = false;
+
+        if (e.message === "NOT_FOUND") {
+            alert('この おなまえ は とうろく されていません。');
+        } else if (e.message === "LIMIT_REACHED") {
+            alert(`きょうは ${e.playLimit}回 あそんだよ！\nきょうのぶんは おしまい！またあしたね！`);
+            document.getElementById('game-over-screen').classList.add('hidden');
+            document.getElementById('title-screen').classList.remove('hidden');
+            gameState = 'title';
+        } else {
+            console.error(e);
+            alert('通信エラーがおきました。もう一度おしてみてね。');
+        }
     }
 }
 
@@ -496,7 +523,9 @@ document.getElementById('start-btn').addEventListener('click', () => {
 });
 
 document.getElementById('restart-btn').addEventListener('click', () => {
-    tryStartGame(currentUser.id, document.getElementById('restart-btn'));
+    if (currentUser && currentUser.id) {
+        tryStartGame(currentUser.id, document.getElementById('restart-btn'));
+    }
 });
 
 document.getElementById('logout-btn').addEventListener('click', () => {
@@ -760,28 +789,24 @@ function update(timestamp) {
     }
 }
 
-// ==========================================
-// ゲームオーバーとランキング更新
-// ==========================================
 async function gameOver(stageName) {
     gameState = 'gameover';
     const finalScore = Math.floor(score);
-    const today = new Date().toLocaleDateString('ja-JP');
+    const today = getTodayString();
     
     document.getElementById('result-score').innerHTML = `${finalScore}<span class="text-lg">m</span>`;
     document.getElementById('reached-stage').innerText = `到達ステージ: ${stageName}`;
     document.getElementById('display-player-name').innerText = currentUser.id;
     
-    // 残り回数表示
     let isUnlimited = (currentUser.unlimitedDate === today);
-    let remStr = isUnlimited ? "無制限✨" : Math.max(0, currentUser.playLimit - currentUser.playedToday) + " 回";
+    let remCount = Math.max(0, Number(currentUser.playLimit) - Number(currentUser.playedToday));
+    let remStr = isUnlimited ? "無制限✨" : remCount + " 回";
     document.getElementById('display-remaining').innerText = remStr;
 
     let noticeEl = document.getElementById('record-notice');
     noticeEl.innerText = "";
     noticeEl.classList.add('hidden');
 
-    // スコア自動更新判定
     let updates = {};
     let isOverallBest = (!currentUser.bestScore || finalScore > currentUser.bestScore);
     let isDailyBest = (currentUser.dailyDate !== today || !currentUser.dailyScore || finalScore > currentUser.dailyScore);
@@ -825,7 +850,6 @@ async function loadRankings() {
 
         const [snapO, snapD] = await Promise.all([getDocs(qO), getDocs(qD)]);
         
-        // 総合描画
         listO.innerHTML = '';
         let rankO = 1;
         snapO.forEach(dSnap => {
@@ -838,8 +862,7 @@ async function loadRankings() {
         });
         if (rankO === 1) { listO.innerHTML = '<li class="text-gray-500 text-center py-1">まだないよ</li>'; }
 
-        // デイリー描画
-        const today = new Date().toLocaleDateString('ja-JP');
+        const today = getTodayString();
         listD.innerHTML = '';
         let rankD = 1;
         snapD.forEach(dSnap => {
