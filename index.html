@@ -2,28 +2,34 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>ゆいじゃんぷ - 完全版ストッパー</title>
-    <!-- アプリアイコンの設定 -->
-    <link rel="icon" href="./uijump 001.jpg">
-    <link rel="apple-touch-icon" href="./uijump 001.jpg">
+    <!-- アプリアイコンの設定（スペースを%20に変換して確実に読み込む） -->
+    <link rel="icon" href="./uijump%20001.jpg">
+    <link rel="apple-touch-icon" href="./uijump%20001.jpg">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { margin: 0; overflow: hidden; touch-action: none; background-color: #000; user-select: none; -webkit-user-select: none; }
-        canvas { display: block; margin: 0 auto; max-width: 100%; max-height: 100vh; }
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        /* 100vhと100dvhを併用し、あらゆるスマホで全画面にピタッと合わせる */
+        html, body { 
+            margin: 0; padding: 0; overflow: hidden; touch-action: none; 
+            background-color: #000; user-select: none; -webkit-user-select: none; 
+            width: 100vw; height: 100vh; height: 100dvh; position: fixed; inset: 0;
+        }
+        canvas { display: block; width: 100%; height: 100%; }
+        #ui-layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
         .pointer-events-auto { pointer-events: auto; }
         .hide-scroll::-webkit-scrollbar { display: none; }
-        /* selectの矢印を消してカスタムアイコンに置き換えるための設定 */
         select { -webkit-appearance: none; -moz-appearance: none; appearance: none; }
     </style>
 </head>
 <body>
 <!-- 開いた瞬間のスプラッシュ画面 -->
 <div id="splash-screen" class="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white transition-opacity duration-1000 pointer-events-auto">
-    <img src="./uijump 001.jpg" alt="ゆいじゃんぷアイコン" class="w-48 h-48 object-contain mb-6 rounded-3xl shadow-lg animate-bounce">
+    <img src="./uijump%20001.jpg" alt="ゆいじゃんぷアイコン" class="w-48 h-48 object-contain mb-6 rounded-3xl shadow-lg animate-bounce">
     <h1 class="text-5xl font-black text-orange-500 tracking-widest drop-shadow-md">ゆいじゃんぷ</h1>
 </div>
 
@@ -31,9 +37,9 @@
 <div id="ui-layer" class="flex items-center justify-center">
 
     <!-- タイトル画面 -->
-    <div id="title-screen" class="relative bg-white/95 p-6 rounded-2xl shadow-2xl text-center pointer-events-auto max-w-sm w-[90%] border-4 border-orange-400">
+    <div id="title-screen" class="relative bg-white/95 p-6 rounded-2xl shadow-2xl text-center pointer-events-auto max-w-sm w-[90%] max-h-[92vh] overflow-y-auto hide-scroll border-4 border-orange-400">
         <!-- ⚙️ 管理者ボタン（右上） -->
-        <button id="admin-btn" class="absolute top-3 right-3 text-2xl opacity-50 hover:opacity-100 transition-opacity">⚙️</button>
+        <button id="admin-btn" class="absolute top-3 right-3 text-2xl opacity-60 hover:opacity-100 active:scale-90 transition-all p-1">⚙️</button>
 
         <h1 class="text-3xl font-black text-orange-500 mb-2 tracking-wider">ゆいじゃんぷ</h1>
         <p class="text-xs text-orange-700 font-bold bg-orange-100 rounded-full py-1 px-3 inline-block mb-3">✨ 自動ランキング＆ストッパー ✨</p>
@@ -93,12 +99,13 @@
             </ul>
         </div>
 
-        <!-- ★パスワード変更枠（新機能！） -->
+        <!-- パスワード変更枠 -->
         <div class="bg-white p-4 rounded-lg shadow-sm mb-4 text-left border">
             <h3 class="font-bold text-sm text-gray-700 mb-2 border-b pb-1">🔑 管理者パスワードの変更</h3>
+            <p class="text-[11px] text-gray-500 mb-2">現在設定されているパスワード: <span id="current-pwd-display" class="font-bold text-gray-800">0000</span></p>
             <div class="flex items-center space-x-2">
-                <input type="text" id="admin-new-pwd" placeholder="新しいパスワード" class="flex-1 px-2 py-2 border rounded bg-gray-50 font-bold">
-                <button id="admin-change-pwd-btn" class="bg-gray-700 hover:bg-gray-800 text-white font-bold py-2 px-3 rounded shadow transition-colors text-sm">変更</button>
+                <input type="text" id="admin-new-pwd" placeholder="新しいパスワード" class="flex-1 px-2 py-2 border rounded bg-gray-50 font-bold text-sm">
+                <button id="admin-change-pwd-btn" class="bg-gray-700 hover:bg-gray-800 text-white font-bold py-2 px-3 rounded shadow transition-colors text-sm shrink-0">変更</button>
             </div>
         </div>
 
@@ -112,7 +119,7 @@
         <p class="text-4xl font-black text-orange-500 mb-1" id="result-score">0<span class="text-lg">m</span></p>
         
         <!-- ベスト更新のお知らせ -->
-        <div id="record-notice" class="h-6 mb-2 font-bold text-red-500 text-sm animate-bounce"></div>
+        <div id="record-notice" class="h-6 mb-2 font-bold text-red-500 text-sm animate-bounce hidden"></div>
 
         <!-- プレイヤー情報と残り回数 -->
         <div class="bg-gray-100 p-3 rounded-lg mb-3 text-left shadow-inner">
@@ -145,7 +152,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit, doc, getDoc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, query, orderBy, limit, doc, getDoc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
 
 // Firebase設定
 const firebaseConfig = {
@@ -161,8 +168,39 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 let currentUser = null; 
+let cachedAdminPassword = "0000"; // 初期パスワード
 
-// スプラッシュ画面の制御
+// 起動時に最新のパスワードをクラウドからこっそり読み込んでおく
+async function preloadAdminPassword() {
+    try {
+        const docSnap = await getDoc(doc(db, "settings", "admin"));
+        if (docSnap.exists() && docSnap.data().password) {
+            cachedAdminPassword = String(docSnap.data().password);
+        }
+    } catch (e) {
+        console.warn("パスワード事前読込スキップ");
+    }
+}
+
+// ★ 全画面表示＆画面サイズ自動調整
+function enterFullScreen() {
+    const elem = document.documentElement;
+    try {
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen().catch(() => {});
+            } else if (elem.webkitRequestFullscreen) {
+                elem.webkitRequestFullscreen();
+            }
+        }
+    } catch (e) {}
+    // 全画面アニメーション中もズレないように複数回サイズを測り直す
+    setTimeout(resize, 100);
+    setTimeout(resize, 300);
+    setTimeout(resize, 600);
+}
+
+// スプラッシュ画面の制御と初期データ読み込み
 window.addEventListener('load', () => {
     setTimeout(() => {
         const splash = document.getElementById('splash-screen');
@@ -170,8 +208,8 @@ window.addEventListener('load', () => {
         setTimeout(() => { splash.classList.add('hidden'); }, 1000);
     }, 2000); 
     
-    // アプリ起動時にドロップダウンのユーザーリストを読み込む
     loadUserListForDropdown();
+    preloadAdminPassword();
 });
 
 // ==========================================
@@ -185,7 +223,6 @@ async function loadUserListForDropdown() {
         
         let users = [];
         snapshot.forEach(docSnap => { users.push(docSnap.id); });
-        
         users.sort((a, b) => a.localeCompare(b, 'ja'));
         
         if(users.length === 0) {
@@ -193,6 +230,7 @@ async function loadUserListForDropdown() {
             return;
         }
 
+        const prevValue = selectEl.value;
         selectEl.innerHTML = '<option value="">▼ ここをおして えらぶ ▼</option>';
         users.forEach(name => {
             const opt = document.createElement('option');
@@ -200,11 +238,11 @@ async function loadUserListForDropdown() {
             opt.innerText = name;
             selectEl.appendChild(opt);
         });
+        if (users.includes(prevValue)) selectEl.value = prevValue;
     } catch (e) {
         selectEl.innerHTML = '<option value="">エラーが おきました</option>';
     }
 }
-
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -217,6 +255,9 @@ function resize() {
     canvas.height = ch;
 }
 window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 200));
+document.addEventListener('fullscreenchange', () => setTimeout(resize, 100));
+document.addEventListener('webkitfullscreenchange', () => setTimeout(resize, 100));
 resize();
 
 const STAGES = [
@@ -261,34 +302,31 @@ const fpsInterval = 1000 / 60;
 // ==========================================
 // ★ 管理者メニュー＆パスワード機能 ★
 // ==========================================
-
-// 1. 管理者メニューを開くとき
 document.getElementById('admin-btn').addEventListener('click', async () => {
+    // スマホでブロックされないよう、ボタンを押した瞬間にまず入力画面を出す！
     const pwd = prompt('保護者用パスワードを入力してください:\n（初期パスワードは 0000 です）');
-    if (pwd === null) return; // キャンセルした時
+    if (pwd === null) return; 
 
     try {
-        // クラウドから現在のパスワードを取得（無い場合は0000）
         const docRef = doc(db, "settings", "admin");
         const docSnap = await getDoc(docRef);
-        let currentPassword = "0000";
         if (docSnap.exists() && docSnap.data().password) {
-            currentPassword = docSnap.data().password;
-        }
-
-        if (pwd === currentPassword) {
-            document.getElementById('title-screen').classList.add('hidden');
-            document.getElementById('admin-screen').classList.remove('hidden');
-            loadAdminUsers();
-        } else {
-            alert('パスワードがちがいます！');
+            cachedAdminPassword = String(docSnap.data().password);
         }
     } catch(e) {
-        alert('通信エラーがおきました。');
+        console.warn("オフラインまたは未設定のためキャッシュを使用します");
+    }
+
+    if (pwd.trim() === cachedAdminPassword) {
+        document.getElementById('current-pwd-display').innerText = cachedAdminPassword;
+        document.getElementById('title-screen').classList.add('hidden');
+        document.getElementById('admin-screen').classList.remove('hidden');
+        loadAdminUsers();
+    } else {
+        alert('パスワードがちがいます！');
     }
 });
 
-// 2. パスワードを変更するとき
 document.getElementById('admin-change-pwd-btn').addEventListener('click', async () => {
     const newPwd = document.getElementById('admin-new-pwd').value.trim();
     if (!newPwd) {
@@ -301,16 +339,17 @@ document.getElementById('admin-change-pwd-btn').addEventListener('click', async 
         btn.innerText = '変更中...'; btn.disabled = true;
         try {
             await setDoc(doc(db, "settings", "admin"), { password: newPwd }, { merge: true });
-            alert('パスワードを変更しました！次からこのパスワードを使ってください。');
+            cachedAdminPassword = newPwd;
+            document.getElementById('current-pwd-display').innerText = newPwd;
+            alert(`パスワードを「${newPwd}」に変更しました！`);
             document.getElementById('admin-new-pwd').value = '';
         } catch(e) {
-            alert('エラーが発生しました。');
+            alert('通信エラーが発生しました。もう一度お試しください。');
         }
         btn.innerText = '変更'; btn.disabled = false;
     }
 });
 
-// メニューを閉じる
 document.getElementById('admin-close-btn').addEventListener('click', () => {
     document.getElementById('admin-screen').classList.add('hidden');
     document.getElementById('title-screen').classList.remove('hidden');
@@ -319,7 +358,10 @@ document.getElementById('admin-close-btn').addEventListener('click', () => {
 document.getElementById('admin-add-btn').addEventListener('click', async () => {
     const name = document.getElementById('admin-new-name').value.trim();
     const pLimit = parseInt(document.getElementById('admin-new-limit').value, 10);
-    if (!name || isNaN(pLimit)) return;
+    if (!name || isNaN(pLimit)) {
+        alert('おなまえ と 回数 を正しく入力してください。');
+        return;
+    }
 
     const btn = document.getElementById('admin-add-btn');
     btn.innerText = '処理中...'; btn.disabled = true;
@@ -359,8 +401,8 @@ async function loadAdminUsers() {
             
             let isUnlimited = (d.unlimitedDate === today);
             let unlimHtml = isUnlimited 
-                ? `<span class="text-green-500 font-bold text-xs bg-green-50 px-2 py-1 rounded">✨今日無制限ON</span>`
-                : `<button class="bg-yellow-400 hover:bg-yellow-500 text-white px-2 py-1 rounded text-xs font-bold" onclick="setUnlimited('${docSnap.id}')">今日だけ無制限</button>`;
+                ? `<span class="text-green-600 font-bold text-xs bg-green-100 px-2 py-1 rounded">✨今日無制限ON</span>`
+                : `<button class="bg-yellow-400 hover:bg-yellow-500 text-white px-2 py-1 rounded text-xs font-bold shadow-sm" onclick="setUnlimited('${docSnap.id}')">今日だけ無制限</button>`;
 
             li.innerHTML = `
                 <div class="flex justify-between items-center mb-2">
@@ -372,7 +414,7 @@ async function loadAdminUsers() {
                         1日上限: <span class="font-bold">${d.playLimit}</span>回<br>
                         今日のプレイ: <span class="text-blue-600 font-bold text-sm">${d.lastDate === today ? d.playedToday : 0}</span>回
                     </div>
-                    <button class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs font-bold" onclick="deleteUser('${docSnap.id}')">削除</button>
+                    <button class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs font-bold shadow-sm" onclick="deleteUser('${docSnap.id}')">削除</button>
                 </div>
             `;
             listEl.appendChild(li);
@@ -381,7 +423,7 @@ async function loadAdminUsers() {
 }
 
 window.deleteUser = async (name) => {
-    if(confirm(`${name} のデータを削除しますか？`)) {
+    if(confirm(`「${name}」のデータを削除しますか？`)) {
         await deleteDoc(doc(db, "users", name)); 
         await loadAdminUsers();
         await loadUserListForDropdown(); 
@@ -399,6 +441,9 @@ window.setUnlimited = async (name) => {
 // ==========================================
 async function tryStartGame(nameInput, btnElement) {
     if (!nameInput) { alert('おなまえ を えらんでね！'); return; }
+
+    // ボタンを押した瞬間に全画面化を実行！
+    enterFullScreen();
 
     const originalText = btnElement.innerText;
     btnElement.innerText = 'かくにん中...'; btnElement.disabled = true;
@@ -436,6 +481,8 @@ async function tryStartGame(nameInput, btnElement) {
         currentUser.id = nameInput;
 
         btnElement.innerText = originalText; btnElement.disabled = false;
+        
+        resize();
         initGame();
 
     } catch (e) {
@@ -457,7 +504,6 @@ document.getElementById('logout-btn').addEventListener('click', () => {
     document.getElementById('title-screen').classList.remove('hidden');
     gameState = 'title';
 });
-
 
 // ==========================================
 // ゲーム本体
@@ -757,7 +803,6 @@ async function gameOver(stageName) {
         currentUser.dailyDate = today;
     }
 
-    // 更新があればFirebaseに保存
     if (Object.keys(updates).length > 0) {
         try {
             await updateDoc(doc(db, "users", currentUser.id), updates);
@@ -765,8 +810,6 @@ async function gameOver(stageName) {
     }
 
     document.getElementById('game-over-screen').classList.remove('hidden');
-    
-    // ダブルランキングの読み込み
     loadRankings();
 }
 
@@ -777,16 +820,13 @@ async function loadRankings() {
     listD.innerHTML = '<li class="text-gray-500 text-center py-2">よみこみ中...</li>';
     
     try {
-        // 総合トップ5
         const qO = query(collection(db, "users"), orderBy("bestScore", "desc"), limit(5));
-        // デイリー制作用に少し多めに取得
         const qD = query(collection(db, "users"), orderBy("dailyScore", "desc"), limit(20));
 
         const [snapO, snapD] = await Promise.all([getDocs(qO), getDocs(qD)]);
         
         // 総合描画
         listO.innerHTML = '';
-        if (snapO.empty) { listO.innerHTML = '<li class="text-gray-500 text-center py-1">まだないよ</li>'; }
         let rankO = 1;
         snapO.forEach(dSnap => {
             const d = dSnap.data();
@@ -796,6 +836,7 @@ async function loadRankings() {
                 rankO++;
             }
         });
+        if (rankO === 1) { listO.innerHTML = '<li class="text-gray-500 text-center py-1">まだないよ</li>'; }
 
         // デイリー描画
         const today = new Date().toLocaleDateString('ja-JP');
